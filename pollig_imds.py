@@ -24,8 +24,10 @@ if __name__ == "__main__":
         metadata_response = get_instance_metadata()
         if metadata_response.status_code == 200:
             termination_time = metadata_response.text
+            print("Instance is marked to be stopped or terminated")
             print(f"Termination Time: {termination_time}")
+            
             break
         else:
-            print("Failed to retrieve termination time")
+            print("No termination action detected, proceed")
             time.sleep(5)

@@ -103,16 +103,8 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            set -e
-            # Continuously check for a Spot Instance interruption notice.
-            while [ -n "$(curl -s http://169.254.169.254/latest/meta-data/spot/instance-action | grep 404)" ]; do
-                sleep 5
-            done
-            # Fetch the actual termination time from instance metadata.
-            termination_time=$(date -d "$(curl -s http://169.254.169.254/latest/meta-data/spot/instance-action | jq -r .time)" +%s)
-            current_time=$(date +%s)
-            time_to_termination=$((termination_time - current_time))
-            echo "Save the Status"
+            cd /var/tmp/
+            curl -sO https://raw.githubusercontent.com/PaoloL/aws-ec2-spot-events/main/pollig_imds.py
 
   EC2SpotFleet:
     Type: AWS::EC2::SpotFleet
