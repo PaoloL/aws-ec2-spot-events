@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A CloudFormation template that creates Spot Instances, an EventBridge rule, and an FIS scenario.
+
+Parameters:
+  
+  TotalTargetCapacity:
+    Type: Number
+    Default: 4
+    Description: 'The number of units to request for the Spot Fleet'
+
+  TargetCapacityUnitType:
+    Type: String
+    Default: units
+    Description: 'The unit for the target capacity'
+    AllowedValues:
+    - vcpu
+    - memory-mib
+    - units
+  
+  InstanceType:
+    Type: CommaDelimitedList
+    Default: "t3.large, m5.large"
+    Description: 'The type of EC2 instances'
+  
+  SubnetIds:
+    Description: The list of Subnet IDs
+    Type: String
+    Default: "subnet-0af751c807e1fe2f9,subnet-0f7165dbbf6c2cdc9,subnet-013ee744214df5698"
+  
+  SubscriptionEmail:
+    Type: String
+    Description: "The email address to receive notifications from the SNS topic."
+
+Mappings:
+  AWSRegionArch2AMI:
+    us-east-1:
+      HVM64: ami-07caf09b362be10b8
+    eu-west-1:
+      HVM64: ami-0dfdc165e7af15242
+
+Resources:
+
+  AWSSummitSpotFleet:
+    Type: AWS::EC2::SpotFleet
+    Properties:
+      SpotFleetRequestConfigData:
+        IamFleetRole: arn:aws:iam::983441761380:role/aws-service-role/spotfleet.amazonaws.com/AWSServiceRoleForEC2SpotFleet
+        SpotPrice: '1'
+        TargetCapacity: !Ref TotalTargetCapacity
+        TargetCapacityUnitType: vcpu
+        AllocationStrategy: 'capacityOptimized'
+        InstanceInterruptionBehavior: 'terminate'
+        LaunchSpecifications:
+        - ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', 'HVM64']
+          SubnetId: !Ref SubnetIds
+          InstanceRequirements:
+            VCpuCount:
+              Min: 1
+              Max: 4
+            MemoryMiB:
+              Min: 4096
+              Max: 16384
+            InstanceGenerations:
+              - current
+            RequireHibernateSupport: false
+        TagSpecifications:
+          - ResourceType: "instance"
+            Tags:
+              - Key: "Name"
+                Value: "AWSSummitSpotInstance"
+              - Key: "Interrupt"
+                Value: "Yes"
+  
+  AWSSummitSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: spot-instances-events
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref SubscriptionEmail
+
+  AWSSummitSnsPermission:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref AWSSummitSnsTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "events.amazonaws.com"
+            Action: "sns:Publish"
+            Resource: !Ref AWSSummitSnsTopic
+
+  AWSSummitEventBus: 
+      Type: AWS::Events::EventBus
+      Properties: 
+          Name: "SpotInstancesEventBus"
+
+  AWSSummitEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "EventBridge rule that triggers an SNS topic"
+      EventBusName: !Ref AWSSummitEventBus
+      EventPattern:
+        source:
+          - 'aws.ec2'
+        detail-type:
+          - 'EC2 Spot Instance Interruption Warning'
+      Targets:
+        - Arn: !Ref AWSSummitSnsTopic
+          Id: 'SpotFleetInterruptionHandler'
+
+  AWSSummitFISExperimentTemplate:
+    Type: 'AWS::FIS::ExperimentTemplate'
+    Properties:
+      RoleArn: arn:aws:iam::983441761380:role/aws-service-role/fis.amazonaws.com/AWSServiceRoleForFIS
+      Description: 'Test EC2 Spot instance interruption notices'
+      Actions:
+        stopSpotInstances:
+          ActionId: 'aws:ec2:stop-instances'
+          Targets:
+            Instances: SelectOneInstanceByTag
+      Targets:
+        SelectOneInstanceByTag:
+          ResourceTags:
+            'Interrupt': 'Yes'
+          ResourceType: 'aws:ec2:instance'
+          SelectionMode: 'COUNT(1)'
+      StopConditions:
+        - Source: 'none'
+      Tags:
+        Project: "AWSSummit24"
+        Environment: "Demo"
+
+
+Outputs:
+  SpotFleetRequestId:
+    Description: 'The Spot Fleet Request ID'
+    Value: !Ref AWSSummitSpotFleet
+  EventBridgeRuleArn:
+    Description: 'The Amazon EventBridge rule ARN'
+    Value: !GetAtt AWSSummitEventBridgeRule.Arn
+#  FISExperimentTemplateId:
+#    Description: 'The FIS Experiment Template ID'
+#    Value: !Ref FISExperimentTemplate

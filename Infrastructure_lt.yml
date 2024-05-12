@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A CloudFormation template that creates Spot Instances, an EventBridge rule, and an FIS scenario.
+
+Parameters:
+  
+  TotalTargetCapacity:
+    Type: Number
+    Default: 4
+    Description: 'The number of units to request for the Spot Fleet'
+
+  TargetCapacityUnitType:
+    Type: String
+    Default: units
+    Description: 'The unit for the target capacity'
+    AllowedValues:
+    - vcpu
+    - memory-mib
+    - units
+  
+  InstanceType:
+    Type: CommaDelimitedList
+    Default: "t3.large, m5.large"
+    Description: 'The type of EC2 instances'
+  
+  SubnetIds:
+    Description: The list of Subnet IDs
+    Type: String
+    Default: "subnet-0af751c807e1fe2f9,subnet-0f7165dbbf6c2cdc9,subnet-013ee744214df5698"
+  
+  SubscriptionEmail:
+    Type: String
+    Description: "The email address to receive notifications from the SNS topic."
+
+Mappings:
+  AWSRegionArch2AMI:
+    us-east-1:
+      HVM64: ami-07caf09b362be10b8
+    eu-west-1:
+      HVM64: ami-0dfdc165e7af15242
+
+Resources:
+
+  AWSSummitFISRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: AWSSummit_Role_For_FIS
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "fis.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AWSFaultInjectionSimulatorEC2Access
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  AWSSummitLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: LaunchTemplateForSpotFleet
+      LaunchTemplateData:
+        ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', 'HVM64']
+        InstanceRequirements:
+            VCpuCount:
+              Min: 1
+              Max: 4
+            MemoryMiB:
+              Min: 4096
+              Max: 16384
+            InstanceGenerations:
+              - current
+        TagSpecifications:
+          - ResourceType: "instance"
+            Tags:
+              - Key: "Name"
+                Value: "AWSSummitSpotInstance"
+              - Key: "Interrupt"
+                Value: "Yes"
+
+  AWSSummitSpotFleet:
+    Type: AWS::EC2::SpotFleet
+    Properties:
+      SpotFleetRequestConfigData:
+        IamFleetRole: arn:aws:iam::983441761380:role/aws-ec2-spot-fleet-tagging-role
+        SpotPrice: '1'
+        TargetCapacity: !Ref TotalTargetCapacity
+        AllocationStrategy: 'priceCapacityOptimized'
+        LaunchTemplateConfigs:
+          - LaunchTemplateSpecification:
+              LaunchTemplateId: !Ref AWSSummitLaunchTemplate
+              Version: !GetAtt AWSSummitLaunchTemplate.LatestVersionNumber
+        InstanceInterruptionBehavior: 'terminate'
+  
+  AWSSummitSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: spot-instances-events
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref SubscriptionEmail
+
+  AWSSummitSnsPermission:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref AWSSummitSnsTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "events.amazonaws.com"
+            Action: "sns:Publish"
+            Resource: !Ref AWSSummitSnsTopic
+
+  AWSSummitEventBus: 
+      Type: AWS::Events::EventBus
+      Properties: 
+          Name: "SpotInstancesEventBus"
+
+  AWSSummitEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "EventBridge rule that triggers an SNS topic"
+      EventBusName: default
+      EventPattern:
+        source:
+        - aws.ec2
+        detail-type:
+        - EC2 Spot Instance Interruption Warning
+      Targets:
+        - Arn: !Ref AWSSummitSnsTopic
+          Id: 'SpotFleetInterruptionHandler'
+      State: ENABLED
+
+  AWSSummitFisLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: '/aws/fis/awssummit-fis-experiments'
+      RetentionInDays: 14
+
+  AWSSummitFISExperimentTemplate:
+    Type: 'AWS::FIS::ExperimentTemplate'
+    Properties:
+      RoleArn: !GetAtt AWSSummitFISRole.Arn
+      Description: 'Test EC2 Spot instance interruption notices'
+      Actions:
+        stopSpotInstances:
+          ActionId: 'aws:ec2:send-spot-instance-interruptions'
+          Targets:
+            SpotInstances: selectOneInstanceByTag
+          Parameters:
+            durationBeforeInterruption: 'PT2M'
+      Targets:
+        selectOneInstanceByTag:
+          ResourceTags:
+            Name: 'AWSSummitSpotInstance'
+            Interrupt: 'Yes'
+          ResourceType: 'aws:ec2:spot-instance'
+          SelectionMode: 'COUNT(1)'
+      StopConditions:
+        - Source: 'none'
+      LogConfiguration:
+        CloudWatchLogsConfiguration: 
+           LogGroupArn: !GetAtt AWSSummitFisLogGroup.Arn
+        LogSchemaVersion: 1
+      Tags:
+        Project: "AWSSummit24"
+        Environment: "Demo"
+
+
+Outputs:
+  SpotFleetRequestId:
+    Description: 'The Spot Fleet Request ID'
+    Value: !Ref AWSSummitSpotFleet
+  EventBridgeRuleArn:
+    Description: 'The Amazon EventBridge rule ARN'
+    Value: !GetAtt AWSSummitEventRule.Arn
+  FISExperimentTemplateId:
+    Description: 'The FIS Experiment Template ID'
+    Value: !Ref AWSSummitFISExperimentTemplate

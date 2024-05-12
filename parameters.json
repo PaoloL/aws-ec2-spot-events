@@ -1,0 +1,20 @@
+
+[
+  {
+    "ParameterKey": "TotalTargetCapacity",
+    "ParameterValue": "2"
+  },
+
+  {
+    "ParameterKey": "TargetCapacityUnitType",
+    "ParameterValue": "units"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t3.large, m5.large"
+  },
+  {
+    "ParameterKey": "SubscriptionEmail",
+    "ParameterValue": "paolo.latella@recube.it"
+  }
+]
