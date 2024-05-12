@@ -3,25 +3,26 @@ Description: A CloudFormation template that creates Spot Instances, an EventBrid
 
 Parameters:
   
-  TotalTargetCapacity:
+  SpotTargetCapacity:
     Type: Number
-    Default: 4
-    Description: 'The number of units to request for the Spot Fleet'
-
-  TargetCapacityUnitType:
+    Default: 2
+    Description: 'The number of spot units to request for the Spot Fleet'
+  
+  SpotBudget:
     Type: String
-    Default: units
-    Description: 'The unit for the target capacity'
-    AllowedValues:
-    - vcpu
-    - memory-mib
-    - units
+    Default: 2
+    Description: 'The budget in $ for all Spot instances in the Fleet'
+
+  OnDemandTargetCapacity:
+    Type: Number
+    Default: 1
+    Description: 'The number of on-demand units to request for the Spot Fleet'
   
-  InstanceType:
-    Type: CommaDelimitedList
-    Default: "t3.large, m5.large"
-    Description: 'The type of EC2 instances'
-  
+  OnDemandBudget:
+    Type: String
+    Default: 1
+    Description: 'The budget in $ for all OnDemand instances in the Fleet'
+
   SubnetIds:
     Description: The list of Subnet IDs
     Type: String
@@ -76,6 +77,11 @@ Resources:
       Roles:
         - !Ref SSMInstanceRole
 
+  EC2SpotPlacementGroup:
+    Type: AWS::EC2::PlacementGroup
+    Properties:
+      Strategy: cluster
+
   EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -111,9 +117,17 @@ Resources:
     Properties:
       SpotFleetRequestConfigData:
         IamFleetRole: arn:aws:iam::983441761380:role/aws-ec2-spot-fleet-tagging-role
-        SpotPrice: '1'
-        TargetCapacity: !Ref TotalTargetCapacity
+        TargetCapacity: !Ref SpotTargetCapacity
+        ReplaceUnhealthyInstances: True
+        SpotMaintenanceStrategies:
+          CapacityRebalance:
+              ReplacementStrategy: launch-before-terminate
+              TerminationDelay: 300
         AllocationStrategy: 'priceCapacityOptimized'
+        SpotMaxTotalPrice: !Ref SpotBudget
+        OnDemandTargetCapacity: !Ref OnDemandTargetCapacity
+        OnDemandAllocationStrategy: lowestPrice
+        OnDemandMaxTotalPrice: !Ref OnDemandBudget
         LaunchTemplateConfigs:
           - LaunchTemplateSpecification:
               LaunchTemplateId: !Ref EC2LaunchTemplate

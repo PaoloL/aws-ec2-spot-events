@@ -1,17 +1,21 @@
 
 [
   {
-    "ParameterKey": "TotalTargetCapacity",
+    "ParameterKey": "SpotTargetCapacity",
+    "ParameterValue": "2"
+  },
+  {
+    "ParameterKey": "OnDemandTargetCapacity",
     "ParameterValue": "2"
   },
 
   {
-    "ParameterKey": "TargetCapacityUnitType",
-    "ParameterValue": "units"
+    "ParameterKey": "SpotBudget",
+    "ParameterValue": "2"
   },
   {
-    "ParameterKey": "InstanceType",
-    "ParameterValue": "t3.large, m5.large"
+    "ParameterKey": "OnDemandBudget",
+    "ParameterValue": "1"
   },
   {
     "ParameterKey": "SubscriptionEmail",
