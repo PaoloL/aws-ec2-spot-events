@@ -40,10 +40,10 @@ Mappings:
 
 Resources:
 
-  AWSSummitFISRole:
+  FISRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: AWSSummit_Role_For_FIS
+      RoleName: _Role_For_FIS
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -56,7 +56,27 @@ Resources:
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
         - arn:aws:iam::aws:policy/AdministratorAccess
 
-  AWSSummitLaunchTemplate:
+  SSMInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref SSMInstanceRole
+
+  EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateName: LaunchTemplateForSpotFleet
@@ -78,8 +98,10 @@ Resources:
                 Value: "AWSSummitSpotInstance"
               - Key: "Interrupt"
                 Value: "Yes"
+        IamInstanceProfile: 
+          Arn: !GetAtt EC2InstanceProfile.Arn
 
-  AWSSummitSpotFleet:
+  EC2SpotFleet:
     Type: AWS::EC2::SpotFleet
     Properties:
       SpotFleetRequestConfigData:
@@ -89,11 +111,11 @@ Resources:
         AllocationStrategy: 'priceCapacityOptimized'
         LaunchTemplateConfigs:
           - LaunchTemplateSpecification:
-              LaunchTemplateId: !Ref AWSSummitLaunchTemplate
-              Version: !GetAtt AWSSummitLaunchTemplate.LatestVersionNumber
+              LaunchTemplateId: !Ref EC2LaunchTemplate
+              Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
         InstanceInterruptionBehavior: 'terminate'
   
-  AWSSummitSnsTopic:
+  SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: spot-instances-events
@@ -101,11 +123,11 @@ Resources:
         - Protocol: email
           Endpoint: !Ref SubscriptionEmail
 
-  AWSSummitSnsPermission:
+  SNSPermission:
     Type: AWS::SNS::TopicPolicy
     Properties:
       Topics:
-        - !Ref AWSSummitSnsTopic
+        - !Ref SNSTopic
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -113,14 +135,14 @@ Resources:
             Principal:
               Service: "events.amazonaws.com"
             Action: "sns:Publish"
-            Resource: !Ref AWSSummitSnsTopic
+            Resource: !Ref SNSTopic
 
-  AWSSummitEventBus: 
+  EBBus: 
       Type: AWS::Events::EventBus
       Properties: 
           Name: "SpotInstancesEventBus"
 
-  AWSSummitEventRule:
+  EBRule:
     Type: AWS::Events::Rule
     Properties:
       Description: "EventBridge rule that triggers an SNS topic"
@@ -131,20 +153,20 @@ Resources:
         detail-type:
         - EC2 Spot Instance Interruption Warning
       Targets:
-        - Arn: !Ref AWSSummitSnsTopic
+        - Arn: !Ref SNSTopic
           Id: 'SpotFleetInterruptionHandler'
       State: ENABLED
 
-  AWSSummitFisLogGroup:
+  FISLogGroup:
     Type: 'AWS::Logs::LogGroup'
     Properties:
       LogGroupName: '/aws/fis/awssummit-fis-experiments'
       RetentionInDays: 14
 
-  AWSSummitFISExperimentTemplate:
+  FISExperimentTemplate:
     Type: 'AWS::FIS::ExperimentTemplate'
     Properties:
-      RoleArn: !GetAtt AWSSummitFISRole.Arn
+      RoleArn: !GetAtt FISRole.Arn
       Description: 'Test EC2 Spot instance interruption notices'
       Actions:
         stopSpotInstances:
@@ -156,7 +178,7 @@ Resources:
       Targets:
         selectOneInstanceByTag:
           ResourceTags:
-            Name: 'AWSSummitSpotInstance'
+            Name: 'SpotInstance'
             Interrupt: 'Yes'
           ResourceType: 'aws:ec2:spot-instance'
           SelectionMode: 'COUNT(1)'
@@ -164,20 +186,19 @@ Resources:
         - Source: 'none'
       LogConfiguration:
         CloudWatchLogsConfiguration: 
-           LogGroupArn: !GetAtt AWSSummitFisLogGroup.Arn
+           LogGroupArn: !GetAtt FISLogGroup.Arn
         LogSchemaVersion: 1
       Tags:
         Project: "AWSSummit24"
         Environment: "Demo"
 
-
 Outputs:
   SpotFleetRequestId:
     Description: 'The Spot Fleet Request ID'
-    Value: !Ref AWSSummitSpotFleet
+    Value: !Ref EC2SpotFleet
   EventBridgeRuleArn:
     Description: 'The Amazon EventBridge rule ARN'
-    Value: !GetAtt AWSSummitEventRule.Arn
+    Value: !GetAtt EBRule.Arn
   FISExperimentTemplateId:
     Description: 'The FIS Experiment Template ID'
-    Value: !Ref AWSSummitFISExperimentTemplate
+    Value: !Ref FISExperimentTemplate
