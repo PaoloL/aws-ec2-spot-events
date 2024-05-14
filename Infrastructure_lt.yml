@@ -44,7 +44,7 @@ Resources:
   FISRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: _Role_For_FIS
+      RoleName: AWSSummit_RoleForFIS
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -60,6 +60,7 @@ Resources:
   SSMInstanceRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: AWSSummit_RoleForSSM
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -76,11 +77,6 @@ Resources:
       Path: "/"
       Roles:
         - !Ref SSMInstanceRole
-
-  EC2SpotPlacementGroup:
-    Type: AWS::EC2::PlacementGroup
-    Properties:
-      Strategy: cluster
 
   EC2LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -123,6 +119,7 @@ Resources:
           CapacityRebalance:
               ReplacementStrategy: launch-before-terminate
               TerminationDelay: 300
+        Type: maintain
         AllocationStrategy: 'priceCapacityOptimized'
         SpotMaxTotalPrice: !Ref SpotBudget
         OnDemandTargetCapacity: !Ref OnDemandTargetCapacity
@@ -137,7 +134,7 @@ Resources:
   SNSTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: spot-instances-events
+      TopicName: AWSSummit_SpotInstancesEvents
       Subscription:
         - Protocol: email
           Endpoint: !Ref SubscriptionEmail
@@ -159,7 +156,7 @@ Resources:
   EBBus: 
       Type: AWS::Events::EventBus
       Properties: 
-          Name: "SpotInstancesEventBus"
+          Name: "AWSSummit_SpotInstancesEventBus"
 
   EBRule:
     Type: AWS::Events::Rule
@@ -173,14 +170,24 @@ Resources:
         - EC2 Spot Instance Interruption Warning
       Targets:
         - Arn: !Ref SNSTopic
-          Id: 'SpotFleetInterruptionHandler'
+          Id: 'SpotTopicEvents'
+        - Arn: !GetAtt SpotLogGroup.Arn
+          Id: 'SpotLogEvents'
       State: ENABLED
 
   FISLogGroup:
     Type: 'AWS::Logs::LogGroup'
     Properties:
-      LogGroupName: '/aws/fis/awssummit-fis-experiments'
+      LogGroupName: '/aws/fis/awssummit-experiments'
       RetentionInDays: 7
+  
+  SpotLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: '/aws/spot/awssummit-experiments'
+      RetentionInDays: 7
+  
+  
 
   FISExperimentTemplate:
     Type: 'AWS::FIS::ExperimentTemplate'
@@ -197,8 +204,8 @@ Resources:
       Targets:
         selectOneInstanceByTag:
           ResourceTags:
-            Name: 'AWSSummitSpotInstance'
-            Interrupt: 'Yes'
+            "Name": "AWSSummitSpotInstance"
+            "Interrupt": "Yes"
           ResourceType: 'aws:ec2:spot-instance'
           SelectionMode: 'COUNT(1)'
       StopConditions:

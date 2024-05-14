@@ -1,0 +1,33 @@
+{
+    "TargetCapacity": 2,
+    "RegionNames": [
+        "eu-west-1",
+        "us-east-1"
+    ],
+    "SingleAvailabilityZone": true,
+    "InstanceRequirementsWithMetadata": {
+        "ArchitectureTypes": [
+            "x86_64"
+        ],
+        "VirtualizationTypes": [
+            "hvm"
+        ],
+        "InstanceRequirements": {
+            "VCpuCount": {
+                "Min": 1,
+                "Max": 4
+            },
+            "MemoryMiB": {
+                "Min": 1024,
+                "Max": 16384
+            },
+            "InstanceGenerations": [
+                "current"
+            ],
+            "RequireHibernateSupport": false
+        }
+    },
+    "DryRun": false,
+    "MaxResults": 10,
+    "NextToken": ""
+}

@@ -6,7 +6,7 @@
   },
   {
     "ParameterKey": "OnDemandTargetCapacity",
-    "ParameterValue": "2"
+    "ParameterValue": "0"
   },
 
   {
