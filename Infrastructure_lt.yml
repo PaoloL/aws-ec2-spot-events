@@ -114,6 +114,7 @@ Resources:
       SpotFleetRequestConfigData:
         IamFleetRole: arn:aws:iam::983441761380:role/aws-ec2-spot-fleet-tagging-role
         TargetCapacity: !Ref SpotTargetCapacity
+        TargetCapacityUnitType: units
         ReplaceUnhealthyInstances: True
         SpotMaintenanceStrategies:
           CapacityRebalance:
@@ -158,16 +159,33 @@ Resources:
       Properties: 
           Name: "AWSSummit_SpotInstancesEventBus"
 
-  EBRule:
+  EBRuleInterrupt:
     Type: AWS::Events::Rule
     Properties:
-      Description: "EventBridge rule that triggers an SNS topic"
+      Description: "EventBridge rule that catch-up an interruption warning"
       EventBusName: default
       EventPattern:
         source:
         - aws.ec2
         detail-type:
         - EC2 Spot Instance Interruption Warning
+      Targets:
+        - Arn: !Ref SNSTopic
+          Id: 'SpotTopicEvents'
+        - Arn: !GetAtt SpotLogGroup.Arn
+          Id: 'SpotLogEvents'
+      State: ENABLED
+  
+  EBRuleRebalance:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "EventBridge rule that catch-up an rebalance warning"
+      EventBusName: default
+      EventPattern:
+        source:
+        - aws.ec2
+        detail-type:
+        - EC2 Instance Rebalance Recommendation
       Targets:
         - Arn: !Ref SNSTopic
           Id: 'SpotTopicEvents'
@@ -200,7 +218,7 @@ Resources:
           Targets:
             SpotInstances: selectOneInstanceByTag
           Parameters:
-            durationBeforeInterruption: 'PT2M'
+            durationBeforeInterruption: 'PT5M'
       Targets:
         selectOneInstanceByTag:
           ResourceTags:
@@ -222,9 +240,12 @@ Outputs:
   SpotFleetRequestId:
     Description: 'The Spot Fleet Request ID'
     Value: !Ref EC2SpotFleet
-  EventBridgeRuleArn:
+  EventBridgeInterruptRuleArn:
     Description: 'The Amazon EventBridge rule ARN'
-    Value: !GetAtt EBRule.Arn
+    Value: !GetAtt EBRuleInterrupt.Arn
+  EventBridgeRebalanceRuleArn:
+    Description: 'The Amazon EventBridge rule ARN'
+    Value: !GetAtt EBRuleRebalance.Arn
   FISExperimentTemplateId:
     Description: 'The FIS Experiment Template ID'
     Value: !Ref FISExperimentTemplate
