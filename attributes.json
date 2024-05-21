@@ -1,30 +1,20 @@
 {
-    "TargetCapacity": 2,
-    "RegionNames": [
-        "eu-west-1",
-        "us-east-1"
-    ],
+    "TargetCapacity": 10,
+    "RegionNames": [ "eu-west-1" ],
     "SingleAvailabilityZone": true,
-    "InstanceRequirementsWithMetadata": {
-        "ArchitectureTypes": [
-            "x86_64"
-        ],
-        "VirtualizationTypes": [
-            "hvm"
-        ],
-        "InstanceRequirements": {
-            "VCpuCount": {
-                "Min": 1,
-                "Max": 4
-            },
-            "MemoryMiB": {
-                "Min": 1024,
-                "Max": 16384
-            },
-            "InstanceGenerations": [
-                "current"
-            ],
-            "RequireHibernateSupport": false
+    "InstanceRequirementsWithMetadata": 
+    {
+        "ArchitectureTypes": [ "x86_64" ],
+        "VirtualizationTypes": [ "hvm" ],
+        "InstanceRequirements": 
+        {
+            "VCpuCount": { "Min": 2, "Max": 8 },
+            "MemoryMiB": { "Min": 8192, "Max": 32768},
+            "InstanceGenerations": [ "current" ],
+            "RequireHibernateSupport": false,
+            "SpotMaxPricePercentageOverLowestPrice" :20,
+            "OnDemandMaxPricePercentageOverLowestPrice": 20,
+            "AllowedInstanceTypes": ["m5.large", "m5.xlarge", "m5.2xlarge"]
         }
     },
     "DryRun": false,

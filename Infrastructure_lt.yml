@@ -85,14 +85,20 @@ Resources:
       LaunchTemplateData:
         ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', 'HVM64']
         InstanceRequirements:
-            VCpuCount:
-              Min: 1
-              Max: 4
-            MemoryMiB:
-              Min: 4096
-              Max: 16384
-            InstanceGenerations:
-              - current
+          VCpuCount:
+            Min: 1
+            Max: 4
+          MemoryMiB:
+            Min: 4096
+            Max: 16384
+          InstanceGenerations:
+            - current
+          AllowedInstanceTypes:
+            - m5*
+            - c*
+            - r*
+          SpotMaxPricePercentageOverLowestPrice: 20
+          OnDemandMaxPricePercentageOverLowestPrice: 20
         TagSpecifications:
           - ResourceType: "instance"
             Tags:
@@ -255,7 +261,7 @@ Resources:
       Targets:
         selectOneInstanceByTag:
           ResourceTags:
-            "Name": "AWSSummitSpotInstance"
+            "Name": "AWSSummitSpotFleetInstance"
             "Interrupt": "Yes"
           ResourceType: 'aws:ec2:spot-instance'
           SelectionMode: 'COUNT(1)'
